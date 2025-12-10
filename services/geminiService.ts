@@ -1,260 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 import {
-  EditorSettings,
-  BrushToolMode,
   PropertyListingInput,
   ContentGenerationSettings,
   GeneratedContentResult,
 } from "../types";
-
-// Helper to convert blob/file to base64
-export const fileToGenerativePart = async (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      // Remove data url prefix (e.g. "data:image/jpeg;base64,")
-      const base64Data = base64String.split(",")[1];
-      resolve(base64Data);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
-export const generateEnhancedImage = async (
-  originalImageBase64: string,
-  settings: EditorSettings,
-  apiKey: string
-): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey });
-
-  // Construct the prompt based on settings
-  let prompt = "Act as a professional high-end real estate photo editor. ";
-  prompt +=
-    "Enhance this property image significantly while maintaining realism. ";
-
-  // Apply specific instructions
-  if (settings.sky !== "original") {
-    prompt += `Replace the sky with a realistic ${settings.sky} sky. `;
-  }
-
-  if (settings.grass) {
-    prompt += "Make the grass look greener, lush, and perfectly manicured. ";
-  }
-
-  if (settings.wallCleanup) {
-    prompt += "Clean up any marks on the walls. ";
-    if (settings.wallColor !== "original") {
-      prompt += `Repaint the walls in a clean ${settings.wallColor} tone. `;
-    }
-  }
-
-  if (settings.floorPolish !== "none") {
-    prompt += `Make the floors look ${settings.floorPolish} and polished. `;
-  }
-
-  if (settings.declutter) {
-    prompt +=
-      "Remove clutter and personal items from the room to make it spacious. ";
-  }
-
-  if (settings.stagingStyle !== "none") {
-    prompt += `Virtually stage the room in a ${settings.stagingStyle} interior design style with high-quality furniture. `;
-  }
-
-  // Composition Prompts - Perspectives
-  if (settings.angle !== "original") {
-    const angleMap: Record<string, string> = {
-      "corner-left": "Reimagine the view from the left corner perspective.",
-      "corner-right": "Reimagine the view from the right corner perspective.",
-      "corner-front-left": "Show a front-left corner perspective view.",
-      "corner-front-right": "Show a front-right corner perspective view.",
-
-      front:
-        "Adjust to a perfect straight-on front view (one-point perspective).",
-      "eye-level": "Set the camera angle to eye-level front view.",
-      "low-angle":
-        "Use a low angle shot to make the property look grand and imposing.",
-      "high-angle": "Use a high angle shot to show more of the layout.",
-
-      "two-point-left":
-        "Apply a two-point perspective focusing on the left side.",
-      "two-point-right":
-        "Apply a two-point perspective focusing on the right side.",
-      "slight-angle":
-        "Slightly angle the view to add depth (two-point perspective).",
-
-      "tilt-up":
-        "Tilt the camera up to showcase height or skyscrapers (three-point perspective).",
-      "tilt-down":
-        "Tilt the camera down from a height (three-point perspective).",
-
-      "birds-eye": "Transform into a bird’s eye view aerial shot.",
-      drone: "Simulate a high-quality drone shot from above.",
-      "worms-eye": "Use a worm’s eye view from very low ground level.",
-
-      "wide-angle":
-        "Use a wide-angle lens to capture the entire room or exterior.",
-      "interior-long":
-        "Use a long shot to show the depth of the interior space.",
-      "exterior-long": "Use a long shot to capture the full exterior context.",
-      balcony: "Simulate a view looking out from a balcony.",
-      entrance: "Focus the perspective on the main entrance.",
-      backyard: "Show the view from the backyard looking towards the property.",
-    };
-
-    prompt += `${
-      angleMap[settings.angle] || "Adjust the camera angle appropriately."
-    } `;
-  }
-
-  if (settings.perspectiveFix) {
-    prompt +=
-      "Fix all vertical lines and correct any lens distortion. Ensure architectural lines are straight. ";
-  }
-
-  if (settings.depthOfField !== "none") {
-    prompt += `Apply a ${settings.depthOfField} depth of field effect. `;
-  }
-
-  // Upscale / Resolution Prompts
-  if (settings.upscale !== "1x") {
-    prompt += `Apply ${settings.upscale} super-resolution upscaling. Maximize texture details, sharpness, and clarity to simulate an 8K resolution output. Ensure no pixelation or artifacts. `;
-  }
-
-  if (settings.customPrompt) {
-    prompt += `Additional instructions: ${settings.customPrompt}. `;
-  }
-
-  if (settings.negativePrompt) {
-    prompt += `Avoid the following: ${settings.negativePrompt}. `;
-  }
-
-  prompt +=
-    "Ensure the lighting is balanced, exposure is perfect, and the image looks high-resolution and market-ready.";
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image", // Using flash-image for good balance of speed/quality
-      contents: {
-        parts: [
-          {
-            text: prompt,
-          },
-          {
-            inlineData: {
-              mimeType: "image/jpeg", // Assuming jpeg for simplicity, or detect from source
-              data: originalImageBase64,
-            },
-          },
-        ],
-      },
-      config: {
-        // We aren't using systemInstruction here as we put it in the prompt for image models usually
-      },
-    });
-
-    // Extract the image from the response
-    // The model typically returns a generated image in the candidates
-    // Iterate to find image part
-    if (response.candidates && response.candidates.length > 0) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          return part.inlineData.data;
-        }
-      }
-    }
-
-    throw new Error("No image generated.");
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
-  }
-};
-
-export const editImageWithMask = async (
-  originalImageBase64: string,
-  maskImageBase64: string,
-  mode: BrushToolMode,
-  customPrompt: string,
-  strength: number,
-  apiKey: string
-): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey });
-
-  let prompt =
-    "The second image is a mask containing red strokes indicating the area to edit. ";
-
-  switch (mode) {
-    case "remove":
-      prompt +=
-        "Remove the object(s) in the original image (first image) that correspond to the red areas in the mask. Inpaint the removed area to seamlessly match the background texture and lighting. Ensure no trace of the object remains.";
-      break;
-    case "replace":
-      prompt += `Replace the area covered by the mask with: ${customPrompt}. Ensure it fits the perspective, lighting, and style of the room.`;
-      break;
-    case "recolor":
-      prompt += `Recolor the masked object/area to be: ${
-        customPrompt || "clean and new"
-      }. Keep the original texture but change the color/tone.`;
-      break;
-    case "clone":
-      prompt +=
-        "Use context from the surrounding area to fill in the masked area. Acts like a clone stamp tool to extend the background or texture over the masked area.";
-      break;
-    case "outpaint":
-      prompt +=
-        "Fill the masked area seamlessly to extend the scene. Generate plausible background details that match the existing environment.";
-      break;
-    case "enhance":
-      prompt += `Enhance the specific area covered by the mask. ${
-        customPrompt || "Improve clarity, fix texture, and adjust lighting"
-      }.`;
-      break;
-    default:
-      prompt += "Inpaint the masked area seamlessly.";
-  }
-
-  if (strength < 100) {
-    prompt += ` Apply this change with a strength of approximately ${strength}%, blending it slightly with the original if necessary.`;
-  }
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: {
-        parts: [
-          { text: prompt },
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: originalImageBase64,
-            },
-          },
-          {
-            inlineData: {
-              mimeType: "image/png",
-              data: maskImageBase64,
-            },
-          },
-        ],
-      },
-    });
-
-    if (response.candidates && response.candidates.length > 0) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          return part.inlineData.data;
-        }
-      }
-    }
-    throw new Error("No image generated from edit.");
-  } catch (error) {
-    console.error("Gemini Edit Error:", error);
-    throw error;
-  }
-};
 
 export const generatePropertyContent = async (
   input: PropertyListingInput,
@@ -288,6 +37,16 @@ export const generatePropertyContent = async (
     ? ` Use this specific call to action text in the listing description: "${settings.cta.text}"`
     : "";
 
+  const ctaInfo = settings.cta
+    ? `
+    CTA Settings:
+    - Category: ${settings.cta.category}
+    - Text: "${settings.cta.text}"
+    - Style: ${settings.cta.style}
+    - Apply to Instagram: ${settings.cta.placements.instagram ? "Yes" : "No"}
+    `
+    : "";
+
   const instructions = `
     You are an expert Real Estate Copywriter and SEO Specialist.
     Generate content based on the provided Property Listing Details below.
@@ -297,6 +56,7 @@ export const generatePropertyContent = async (
     Style: ${settings.style}
     Language: ${settings.language} (Ensure output is in this language, but hashtags can be mixed if relevant)
     ${ctaText}
+    ${ctaInfo}
     
     Please output strictly a valid JSON object without markdown formatting (do not use \`\`\`json).
     The JSON object must have the following keys:
@@ -306,20 +66,20 @@ export const generatePropertyContent = async (
       
       STRUCTURE (follow this exact format with clear section headers):
       
-      [FIRST PARAGRAPH - approximately 600 words, start directly, no intro]
+      [FIRST PARAGRAPH - maximum 300 words, start directly, no intro]
       Start directly with "Dijual [property type]..." - NO introductory phrases like "Berikut adalah" or "Kami menawarkan". Be direct and to the point. 
       
-      This first paragraph should be comprehensive and approximately 600 words. Include ALL of the following information in a natural, flowing narrative:
+      This first paragraph should be concise and maximum 300 words. Include the following information in a natural, flowing narrative:
       - Location, property type, condition, and main appeal
-      - All specifications: facing, bedrooms, bathrooms, electricity, water source, garage, LT, LB, floors, certificate, status
-      - All facilities mentioned
+      - Key specifications: facing, bedrooms, bathrooms, LT, LB, floors, certificate, status
+      - Main facilities (briefly mentioned)
       - Key selling points and advantages
-      - Location benefits and nearby POIs (briefly mentioned)
+      - Location benefits (briefly mentioned)
       - Natural keyword usage (location + property type) throughout for SEO
       
-      Write in a natural, engaging narrative style that flows smoothly. Make it detailed but readable. The paragraph should be comprehensive enough to stand alone as a complete description, covering all key aspects of the property.
+      Write in a natural, engaging narrative style that flows smoothly. Keep it concise but informative. The paragraph should be ONE paragraph only, covering the essential aspects of the property.
       
-      Example structure (expand to ~600 words): "Dijual rumah dalam Komplek Taman Cosmos, Kebon Jeruk, Jakarta Barat. Rumah 3 lantai ini masih sangat baru—baru ditempati sekitar 5 bulan, kondisi terawat dan siap huni. [Continue with detailed specifications, facilities, advantages, location benefits, etc. in natural paragraph form, expanding to approximately 600 words total]"
+      Example structure (max 300 words): "Dijual rumah dalam Komplek Taman Cosmos, Kebon Jeruk, Jakarta Barat. Rumah 3 lantai ini masih sangat baru—baru ditempati sekitar 5 bulan, kondisi terawat dan siap huni. [Continue with key specifications, main facilities, advantages, and location benefits in natural paragraph form, keeping it under 300 words total]"
       
       DETAIL & SPESIFIKASI:
       - Hadap: [facing]
@@ -362,12 +122,63 @@ export const generatePropertyContent = async (
       - Use bullet points (dash format) for facilities and POIs
       - Group location access by time categories with clear headers
       - Natural keyword usage (location + property type) throughout
-      - Total length: 400-600 words (not too long)
+      - First paragraph: Maximum 300 words, ONE paragraph only
       - Use double line breaks between major sections for readability
       - Be specific with numbers and details
       - Write in Indonesian if language is Indonesian, English if language is English
       - DO NOT include a conclusion/CTA section at the end - end with HARGA section
-    - "instagramCaption": Engaging, narrative style, includes hooks, line breaks, and CTA for DM.
+    - "instagramCaption": Engaging Instagram caption with the following format:
+      
+      FORMAT STRUCTURE:
+      1. Opening hook (1-2 lines, catchy and engaging, can include emoji)
+      2. Brief description/benefit (1-2 lines, optional)
+      3. "Check It Out:" or "Chek It Out:" header
+      4. Specifications list using emoji (🥇 or 🎖️ or 🎗️):
+         - Format: [emoji] [specification]
+         - Example: 🥇Harga 1 Man, 🥇Free DP, 🥇2 Lantai - 3 Bedroom
+      5. Location/POI list using 📍 emoji:
+         - Format: 📍[location/POI]
+         - Example: 📍10 Menit ke Akses Tol, 📍5 Menit Ke Mall
+      6. Facilities list using ✨ or 🎗️ emoji (if applicable):
+         - Format: ✨[facility]
+      7. CTA section:
+         IMPORTANT: Use the CTA text and style from the CTA Settings provided above.
+         - If CTA category is "Soft-Selling" or "Friendly": Use friendly, approachable tone
+         - If CTA category is "Hard-Selling": Use urgent, action-oriented tone
+         - If CTA category is "Premium": Use formal, exclusive tone
+         - If CTA category is "WhatsApp": Emphasize WhatsApp availability
+         - If CTA category is "Lead Magnet": Focus on free offer/incentive
+         - If CTA category is "Custom": Use the exact CTA text provided
+         
+         Format the CTA section based on CTA style:
+         - For "Friendly" style: Use casual, warm language
+         - For "Formal" style: Use professional language
+         - For "Premium" style: Use sophisticated language
+         - For "Hard-selling" style: Use urgent, compelling language
+         
+         Structure:
+         - Header: "For More Information:" or "More info:" or "For more information:" or match the CTA style
+         - CTA Text: Use the exact CTA text from CTA Settings provided above. If the CTA text is provided, use it exactly or adapt it naturally to fit Instagram format while maintaining its meaning and tone.
+         - Phone number with emoji: ☎️ : [phone] (optional: @username)
+         - "(Whatsapp Available)" or "(Whatsapp Available 24 Jam)" - include if CTA category is "WhatsApp" or if appropriate
+         
+         Examples based on CTA settings:
+         - If CTA text is "Info lengkap? Hubungi kami ya!" and style is "Friendly":
+           "For more information:\nInfo lengkap? Hubungi kami ya!\n\n☎️ : [phone]\n(Whatsapp Available)"
+         - If CTA text is "Segera hubungi sebelum terjual!" and style is "Hard-selling":
+           "More info:\nSegera hubungi sebelum terjual!\n\n☎️ : [phone]\n(Whatsapp Available 24 Jam)"
+         - If CTA category is "Custom", use the exact CTA text provided in the settings.
+         
+         IMPORTANT: Always use the CTA text from CTA Settings. The CTA section must reflect the exact text, category, and style from the settings provided above.
+      
+      STYLE GUIDELINES:
+      - Use emojis naturally and appropriately
+      - Keep it engaging and conversational
+      - Use line breaks for readability
+      - Include relevant emojis (😍, ❤️, 🤩, ✨, etc.) in opening hook
+      - Make specifications and locations easy to scan with emoji bullets
+      - Keep total length appropriate for Instagram (not too long)
+      - Use Indonesian language if language setting is Indonesian
     - "tiktokCaption": Short, punchy, viral style, focuses on visual appeal or price/value.
     - "facebookCaption": Informative, slightly longer, community-focused, includes full details.
     - "hashtags": An array of strings. Include both location-specific hashtags and trending real estate hashtags.

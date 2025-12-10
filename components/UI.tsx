@@ -140,7 +140,8 @@ export const Select: React.FC<SelectProps> = ({ label, value, onChange, options,
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="block w-full rounded-md border-slate-300 bg-slate-50 py-2 pl-3 pr-10 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 sm:text-sm"
+          className="block w-full rounded-md border-slate-300 bg-slate-50 py-2 pl-3 pr-10 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 sm:text-sm appearance-none"
+          style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
         >
           {groups ? (
             groups.map((group) => (
