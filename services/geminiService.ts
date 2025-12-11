@@ -66,7 +66,7 @@ export const generatePropertyContent = async (
       
       STRUCTURE (follow this exact format with clear section headers):
       
-      [FIRST PARAGRAPH - maximum 300 words, start directly, no intro]
+      [FIRST PARAGRAPH - maximum 150 words, start directly, no intro]
       Start directly with "Dijual [property type]..." - NO introductory phrases like "Berikut adalah" or "Kami menawarkan". Be direct and to the point. 
       
       This first paragraph should be concise and maximum 300 words. Include the following information in a natural, flowing narrative:

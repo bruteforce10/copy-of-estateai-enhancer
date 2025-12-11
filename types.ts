@@ -111,7 +111,13 @@ export interface PropertyListingInput {
   title: string;
   location: string;
   price: string;
-  type: "House" | "Apartment" | "Commercial" | "Land";
+  type:
+    | "House"
+    | "Apartment"
+    | "Commercial"
+    | "Land"
+    | "Industri"
+    | "Warehouse";
   status: "For Sale" | "For Rent";
   specs: {
     lt: string; // Luas Tanah
@@ -142,7 +148,7 @@ export interface ContentGenerationSettings {
     | "Family"
     | "Investors"
     | "Professionals"
-    | "Students"
+    | "College Students"
     | "High-Net-Worth";
   platforms: {
     website: boolean;

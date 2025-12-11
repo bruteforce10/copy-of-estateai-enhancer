@@ -283,6 +283,8 @@ const SeoGeneratorPage = ({ onBack }: { onBack: () => void }) => {
                     { label: "Apartment", value: "Apartment" },
                     { label: "Commercial", value: "Commercial" },
                     { label: "Land", value: "Land" },
+                    { label: "Industri", value: "Industri" },
+                    { label: "Warehouse", value: "Warehouse" },
                   ]}
                 />
               </div>
@@ -547,7 +549,7 @@ const SeoGeneratorPage = ({ onBack }: { onBack: () => void }) => {
                       "Family",
                       "Investors",
                       "Professionals",
-                      "Students",
+                      "College Student",
                       "High-Net-Worth",
                     ].map((v) => ({ label: v, value: v }))}
                   />
